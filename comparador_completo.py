@@ -68,16 +68,20 @@ def configurar_driver():
     if is_railway:
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-setuid-sandbox")
-        options.add_argument("--single-process")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--disable-extensions")
         options.add_argument("--remote-debugging-port=9222")
-        logging.info("Configuración Railway/Docker aplicada")
+        # Quitado --single-process ya que puede causar inestabilidad en versiones nuevas
+        logging.info("Configuración Railway/Docker optimizada aplicada")
 
     try:
         driver = webdriver.Chrome(
             service=Service(ChromeDriverManager().install()),
             options=options
         )
+
+        # Timeout implícito corto para evitar esperas infinitas si el navegador falla
+        driver.set_page_load_timeout(30)
 
         driver.execute_script(
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
