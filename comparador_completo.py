@@ -71,7 +71,17 @@ def configurar_driver():
         options.add_argument("--disable-gpu")
         options.add_argument("--disable-extensions")
         options.add_argument("--remote-debugging-port=9222")
-        # Quitado --single-process ya que puede causar inestabilidad en versiones nuevas
+        # Flags para reducir consumo de memoria y evitar crashes
+        options.add_argument("--disable-renderer-backgrounding")
+        options.add_argument("--disable-background-timer-throttling")
+        options.add_argument("--disable-backgrounding-occluded-windows")
+        options.add_argument("--disable-client-side-phishing-detection")
+        options.add_argument("--disable-crash-reporter")
+        options.add_argument("--disable-oopr-debug-crash-dump")
+        options.add_argument("--no-crash-upload")
+        options.add_argument("--memory-pressure-off")
+        options.add_argument("--mute-audio")
+        
         logging.info("Configuración Railway/Docker optimizada aplicada")
 
     try:
@@ -391,36 +401,28 @@ def buscar_precio_disco(driver, ean):
         time.sleep(3)
 
         # 1. Chequeo explícito de "No encontrado"
-        # Estrategia 1: Clase específica reportada por el usuario
         try:
             if driver.find_elements(By.CSS_SELECTOR, "[class*='row-opss-notfound']"):
                  logging.warning(f"DISCO: Clase 'row-opss-notfound' detectada para {ean}")
-                 print(f"🔴 DISCO | {ean} | No encontrado")
                  return "No encontrado"
         except:
              pass
 
-        try:
-            if "No encontramos resultados" in driver.page_source:
-                logging.warning(f"DISCO: Texto 'No encontramos resultados' detectado para {ean}")
-                print(f"🔴 DISCO | {ean} | No encontrado")
-                return "No encontrado"
-        except:
-            pass
-
         # 2. VALIDACIÓN ESTRICTA
-        current_url = driver.current_url.lower()
-        match_confirmado = False
-        
-        if str(ean) in current_url:
-             match_confirmado = True
-        else:
-             if str(ean) in driver.page_source:
-                  match_confirmado = True
+        try:
+            current_url = driver.current_url.lower()
+            match_confirmado = (str(ean) in current_url)
+            
+            if not match_confirmado:
+                # Búsqueda liviana en el texto visible del body
+                body_text = driver.find_element(By.TAG_NAME, "body").text
+                if str(ean) in body_text:
+                    match_confirmado = True
+        except:
+            match_confirmado = False
         
         if not match_confirmado:
-             logging.warning(f"DISCO: EAN {ean} no confirmado en URL/Source. Posible falso positivo.")
-             print(f"🔴 DISCO | {ean} | No coincidencia exacta")
+             logging.warning(f"DISCO: EAN {ean} no confirmado. Posible falso positivo.")
              return "No encontrado"
 
         try:
@@ -436,12 +438,10 @@ def buscar_precio_disco(driver, ean):
         except Exception as e:
             logging.warning(f"DISCO: No se encontró precio para {ean} (Timeout o elemento no visible)")
 
-        print(f"🔴 DISCO | {ean} | No encontrado")
         return "No encontrado"
 
     except Exception as e:
         logging.error(f"Error buscando {ean} en DISCO: {e}", exc_info=True)
-        print(f"❌ DISCO | {ean} | Error")
         return "No encontrado"
 
 # =====================================================
@@ -677,7 +677,22 @@ def run_scraper(selection, log_queue=None, input_df=None, ignore_cache=False, pa
                 if str(row["Precio DISCO"]) not in ["Pendiente", "No encontrado", "Error"]:
                     continue
 
-                df.at[i, "Precio DISCO"] = buscar_precio_disco(driver, row["SKU"])
+                try:
+                    df.at[i, "Precio DISCO"] = buscar_precio_disco(driver, row["SKU"])
+                except Exception as e:
+                    error_msg = str(e).lower()
+                    if "tab crashed" in error_msg or "session deleted" in error_msg or "not reachable" in error_msg:
+                        logging.error(f"⚠️ DISCO: El navegador crasheó ('tab crashed'). Reiniciando driver...")
+                        try:
+                            driver.quit()
+                        except:
+                            pass
+                        driver = configurar_driver()
+                        df.at[i, "Precio DISCO"] = "Error"
+                    else:
+                        logging.error(f"Error procesando {ean} en DISCO: {e}")
+                        df.at[i, "Precio DISCO"] = "No encontrado"
+
                 df.to_excel(OUTPUT_FILE, index=False)
             
             try:
