@@ -15,6 +15,8 @@ log_queue = queue.Queue()
 
 # Thread handling
 scraper_thread = None
+pause_event = threading.Event()
+pause_event.set() # Inicialmente en estado "Ejecutando"
 
 @app.route('/')
 def index():
@@ -103,10 +105,13 @@ def start_scraper():
     if input_df is not None:
          ignore_cache = True
     
+    # Reset pause event just in case
+    pause_event.set()
+    
     # Start scraper in a separate thread
     scraper_thread = threading.Thread(
         target=run_scraper,
-        args=(selection, log_queue, input_df, ignore_cache)
+        args=(selection, log_queue, input_df, ignore_cache, pause_event)
     )
     scraper_thread.start()
 
@@ -154,6 +159,16 @@ def download_file():
         response.headers["Expires"] = "0"
         return response
     return "Archivo no encontrado", 404
+
+@app.route('/pause', methods=['POST'])
+def pause_scraper():
+    pause_event.clear()
+    return jsonify({'status': 'success', 'message': 'Scraper pausado'})
+
+@app.route('/continue', methods=['POST'])
+def continue_scraper():
+    pause_event.set()
+    return jsonify({'status': 'success', 'message': 'Scraper reanudado'})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

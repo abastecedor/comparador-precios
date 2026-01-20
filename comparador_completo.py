@@ -513,7 +513,7 @@ def menu_seleccion_paginas():
 # EJECUCIÓN PRINCIPAL
 # =====================================================
 
-def run_scraper(selection, log_queue=None, input_df=None, ignore_cache=False):
+def run_scraper(selection, log_queue=None, input_df=None, ignore_cache=False, pause_event=None):
     """
     Función principal para ejecutar el scraper.
     Puede ser llamada desde la CLI o desde la web app.
@@ -525,7 +525,14 @@ def run_scraper(selection, log_queue=None, input_df=None, ignore_cache=False):
         input_df (DataFrame, optional): DataFrame con los datos de entrada. 
                                         Si se provee, se usa en lugar de INPUT_FILE.
         ignore_cache (bool): Si es True, no lée el archivo de salida existente.
+        pause_event (threading.Event, optional): Evento para pausar/reanudar.
     """
+    
+    def check_pause():
+        if pause_event and not pause_event.is_set():
+            logging.info("⏸️ Scraper pausado. Esperando reanudación...")
+            pause_event.wait()
+            logging.info("▶️ Scraper reanudado.")
     
     # Configurar logger para capturar logs en la cola si existe
     if log_queue:
@@ -606,6 +613,7 @@ def run_scraper(selection, log_queue=None, input_df=None, ignore_cache=False):
                 iniciar_pedido_nini(driver)
 
                 for i, row in df.iterrows():
+                    check_pause()
                     if str(row["Precio NINI"]) not in ["Pendiente", "No encontrado", "Error"]:
                         continue
 
@@ -624,6 +632,7 @@ def run_scraper(selection, log_queue=None, input_df=None, ignore_cache=False):
         if buscar_carrefour:
             logging.info("--- Iniciando proceso CARREFOUR ---")
             for i, row in df.iterrows():
+                check_pause()
                 if str(row["Precio CARREFOUR"]) not in ["Pendiente", "No encontrado", "Error"]:
                     continue
 
@@ -639,6 +648,7 @@ def run_scraper(selection, log_queue=None, input_df=None, ignore_cache=False):
         if buscar_vea:
             logging.info("--- Iniciando proceso VEA ---")
             for i, row in df.iterrows():
+                check_pause()
                 if str(row["Precio VEA"]) not in ["Pendiente", "No encontrado", "Error"]:
                     continue
 
@@ -654,6 +664,7 @@ def run_scraper(selection, log_queue=None, input_df=None, ignore_cache=False):
         if buscar_disco:
             logging.info("--- Iniciando proceso DISCO ---")
             for i, row in df.iterrows():
+                check_pause()
                 if str(row["Precio DISCO"]) not in ["Pendiente", "No encontrado", "Error"]:
                     continue
 

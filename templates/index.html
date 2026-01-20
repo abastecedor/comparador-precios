@@ -75,6 +75,10 @@
                 <div id="consoleOutput" class="console-output">
                     <div class="log-line info">Esperando para iniciar...</div>
                 </div>
+                <div class="controls-group" id="executionControls" style="display: none;">
+                    <button id="pauseBtn" class="btn pause">Pausar</button>
+                    <button id="continueBtn" class="btn continue" style="display: none;">Continuar</button>
+                </div>
             </div>
 
             <div id="resultSection" class="card result-card" style="display: none;">
@@ -106,6 +110,9 @@
             statusIndicator.textContent = 'Ejecutando...';
 
             const formData = new FormData(this);
+            document.getElementById('executionControls').style.display = 'flex';
+            document.getElementById('pauseBtn').style.display = 'block';
+            document.getElementById('continueBtn').style.display = 'none';
 
             try {
                 // Start process
@@ -163,14 +170,46 @@
             }
         });
 
+        document.getElementById('pauseBtn').addEventListener('click', async function () {
+            try {
+                const response = await fetch('/pause', { method: 'POST' });
+                if (response.ok) {
+                    this.style.display = 'none';
+                    document.getElementById('continueBtn').style.display = 'block';
+                    const statusIndicator = document.getElementById('statusIndicator');
+                    statusIndicator.className = 'status-badge paused';
+                    statusIndicator.textContent = 'Pausado';
+                }
+            } catch (error) {
+                console.error('Error al pausar:', error);
+            }
+        });
+
+        document.getElementById('continueBtn').addEventListener('click', async function () {
+            try {
+                const response = await fetch('/continue', { method: 'POST' });
+                if (response.ok) {
+                    this.style.display = 'none';
+                    document.getElementById('pauseBtn').style.display = 'block';
+                    const statusIndicator = document.getElementById('statusIndicator');
+                    statusIndicator.className = 'status-badge running';
+                    statusIndicator.textContent = 'Ejecutando...';
+                }
+            } catch (error) {
+                console.error('Error al reanudar:', error);
+            }
+        });
+
         function finishProcess() {
             const btn = document.getElementById('startBtn');
             const resultSection = document.getElementById('resultSection');
             const statusIndicator = document.getElementById('statusIndicator');
+            const executionControls = document.getElementById('executionControls');
 
             statusIndicator.className = 'status-badge completed';
             statusIndicator.textContent = 'Completado';
             resultSection.style.display = 'block';
+            executionControls.style.display = 'none';
             resetBtn();
         }
 
@@ -178,10 +217,15 @@
             const btn = document.getElementById('startBtn');
             const btnText = btn.querySelector('.btn-text');
             const loader = btn.querySelector('.loader');
+            const executionControls = document.getElementById('executionControls');
 
             btn.disabled = false;
             btnText.style.display = 'block';
             loader.style.display = 'none';
+
+            if (btn.disabled === false && document.getElementById('statusIndicator').textContent === 'Ejecutando...') {
+                executionControls.style.display = 'flex';
+            }
         }
     </script>
 </body>
