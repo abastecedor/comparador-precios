@@ -61,9 +61,10 @@ RUN mkdir -p /app/data
 ENV PYTHONUNBUFFERED=1
 ENV CHROME_BIN=/usr/bin/google-chrome
 ENV DISPLAY=:99
+ENV PORT=5000
 
-# Puerto (Railway asigna automáticamente)
+# Puerto
 EXPOSE 5000
 
-# Comando de inicio
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "300", "--workers", "1", "--threads", "4", "app:app"]
+# Comando de inicio - usando variable PORT de Railway
+CMD gunicorn --bind 0.0.0.0:$PORT --timeout 300 --workers 1 --threads 4 app:app
