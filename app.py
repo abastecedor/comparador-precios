@@ -39,6 +39,9 @@ def start_scraper():
     }
     ignore_cache = data.get('ignore_cache') == 'on'
     
+    # Handle Individual EAN
+    individual_ean = data.get('individual_ean', '').strip()
+    
     # Handle File Upload
     file = request.files.get('file')
     input_df = None
@@ -95,6 +98,17 @@ def start_scraper():
             
         except Exception as e:
             return jsonify({'status': 'error', 'message': f'Error al leer el archivo: {str(e)}'}), 400
+    
+    # Priority to individual EAN
+    if individual_ean:
+        input_df = pd.DataFrame([{
+            'codigo': '9999',
+            'ean': individual_ean,
+            'descripcion': 'Búsqueda Individual',
+            'SKU': individual_ean
+        }])
+        ignore_cache = True
+        logging.info(f"Procesando búsqueda individual para EAN: {individual_ean}")
 
     # Clear queue
     with log_queue.mutex:
