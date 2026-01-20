@@ -30,7 +30,7 @@ logging.basicConfig(
 # CONFIGURACIÓN GENERAL
 # =====================================================
 
-HEADLESS = False
+HEADLESS = True
 
 # Usar rutas relativas para compatibilidad con Railway
 import os as _os
