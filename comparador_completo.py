@@ -30,7 +30,7 @@ logging.basicConfig(
 # CONFIGURACIÓN GENERAL
 # =====================================================
 
-HEADLESS = True
+HEADLESS = False
 
 # Usar rutas relativas para compatibilidad con Railway
 import os as _os
@@ -118,101 +118,102 @@ def login_nini(driver):
         print("❌ Error en login NINI")
 
 def iniciar_pedido_nini(driver):
+    """
+    Inicializa el pedido en NINI siguiendo la ruta:
+    1. Click en id="crearPedido"
+    2. Click en id="next" (Continuar)
+    3. Click en id="goToHome" (Ir al buscador)
+    """
     try:
-        logging.info("Iniciando pedido en NINI...")
-        WebDriverWait(driver, 20).until(
+        logging.info("NINI: Iniciando flujo de pedido...")
+        
+        # Paso 1: Crear Pedido
+        btn_crear = WebDriverWait(driver, 15).until(
             EC.element_to_be_clickable((By.ID, "crearPedido"))
-        ).click()
-
-        WebDriverWait(driver, 20).until(
-            EC.element_to_be_clickable((By.ID, "next"))
-        ).click()
-
-        WebDriverWait(driver, 30).until(
-            EC.element_to_be_clickable((By.ID, "goToHome"))
-        ).click()
-
-        WebDriverWait(driver, 30).until(
-            EC.visibility_of_element_located((By.ID, "searcher"))
         )
+        btn_crear.click()
+        logging.info("NINI: Click en crearPedido OK")
+        time.sleep(2)
 
-        logging.info("✅ Pedido NINI iniciado correctamente")
-        print("✅ Pedido NINI iniciado")
+        # Paso 2: Continuar (next)
+        btn_next = WebDriverWait(driver, 15).until(
+            EC.element_to_be_clickable((By.ID, "next"))
+        )
+        btn_next.click()
+        logging.info("NINI: Click en next OK")
+        time.sleep(2)
+
+        # Paso 3: Ir a Home (goToHome)
+        btn_home = WebDriverWait(driver, 15).until(
+            EC.element_to_be_clickable((By.ID, "goToHome"))
+        )
+        btn_home.click()
+        logging.info("NINI: Click en goToHome OK")
+        time.sleep(3)
+
+        # Verificación del buscador
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.ID, "searcher"))
+        )
+        logging.info("✅ NINI: Buscador listo")
+        return True
     except Exception as e:
-        logging.error(f"Error al iniciar pedido NINI: {e}", exc_info=True)
-        print("❌ Error al iniciar pedido NINI")
+        logging.error(f"❌ NINI: Fallo al iniciar pedido: {e}")
+        return False
 
 def buscar_precio_nini(driver, ean):
+    """
+    Busca el precio siguiendo la ruta:
+    1. Introducir EAN en id="searcher" y ENTER.
+    2. Si aparece class="product-price actual-price", tomar precio.
+    3. Si aparece class="confirmation-popup", marcar como No encontrado.
+    """
     try:
-        logging.info(f"Buscando en NINI - EAN: {ean}")
+        logging.info(f"NINI: Buscando EAN {ean}")
+        
+        # 1. Localizar buscador e ingresar EAN
         buscador = WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable((By.ID, "searcher"))
         )
-
-        # Limpiar agresivamente
         buscador.click()
         buscador.send_keys(Keys.CONTROL + "a")
         buscador.send_keys(Keys.DELETE)
-        buscador.clear()
         
-        buscador.send_keys(str(ean), Keys.RETURN)
+        # Ingresar EAN y presionar ENTER por separado
+        buscador.send_keys(str(ean))
+        time.sleep(1) # Esperar a que el sitio registre el input
+        buscador.send_keys(Keys.ENTER)
+        logging.info(f"NINI: EAN {ean} ingresado y ENTER enviado")
         
-        # Espera explícita solicitada por el usuario para asegurar carga
-        time.sleep(2)
-        
-        # Esperar a que 'algo' pase. A veces la tabla tarda en refrescarse.
-        # Si el precio anterior sigue ahí, es un falso positivo.
-        # Lo ideal es esperar que el spinner de carga desaparezca si existe, 
-        # pero como heurística, esperaremos un poco y verificaremos "Descripción" del producto.
-        
-        # Esperar a que aparezca o el precio O el popup de no encontrado
+        # 2. Esperar resultado o popup
         start_time = time.time()
-        found_price = None
-        
-        while time.time() - start_time < 12: # Damos un poco más de tiempo
-            # 1. Popup
-            try:
-                popup = driver.find_element(By.CLASS_NAME, "confirmation-popup")
-                if popup.is_displayed():
-                    driver.find_element(By.CLASS_NAME, "ok-btn").click()
-                    logging.warning(f"NINI: Producto {ean} no encontrado (popup)")
-                    print(f"🔴 NINI | {ean} | No encontrado")
-                    return "No encontrado"
-            except:
-                pass
+        while time.time() - start_time < 15:
+            # 2.1 Verificar Precio (Éxito)
+            precios = driver.find_elements(By.CSS_SELECTOR, ".product-price.actual-price")
+            if precios and precios[0].is_displayed():
+                precio_txt = precios[0].text.strip()
+                if precio_txt and "$" in precio_txt and "0,00" not in precio_txt:
+                    logging.info(f"✅ NINI: {ean} encontrado: {precio_txt}")
+                    return precio_txt
 
-            # 2. Precio
-            try:
-                # Intentamos buscar también la descripción para ver qué encontramos
-                precio_element = driver.find_element(By.CSS_SELECTOR, ".product-price.actual-price")
-                if precio_element.is_displayed():
-                    # Verificar descripción si es posible para asegurar que no es el producto anterior
-                    # (Esto asume que hay un elemento .product-description, común en este tipo de ecommerces)
-                    try:
-                        desc_element = driver.find_element(By.CSS_SELECTOR, ".product-description")
-                        desc = desc_element.text.strip()
-                        logging.info(f"NINI: Potencial coincidencia: '{desc}'")
-                    except:
-                        pass
+            # 2.2 Verificar Popup (No encontrado)
+            popups = driver.find_elements(By.CLASS_NAME, "confirmation-popup")
+            if popups and popups[0].is_displayed():
+                logging.warning(f"⚠️ NINI: {ean} no encontrado (popup detectable)")
+                # Hacer click en OK si existe para limpiar la pantalla para el siguiente
+                try:
+                    popups[0].find_element(By.CSS_SELECTOR, "a.ok-btn, .ok-btn").click()
+                except:
+                    pass
+                return "No encontrado"
 
-                    found_price = precio_element.text.strip()
-                    break
-            except:
-                pass
-            
-            time.sleep(0.5)
+            time.sleep(1)
 
-        if found_price:
-            logging.info(f"NINI: Producto {ean} encontrado - Precio: {found_price}")
-            print(f"🟢 NINI | {ean} | {found_price}")
-            return found_price
-        else:
-            logging.warning(f"NINI: Timeout buscando {ean} (ni precio ni popup)")
-            return "No encontrado"
+        logging.warning(f"⌛ NINI: Timeout buscando {ean}")
+        return "No encontrado"
 
     except Exception as e:
-        logging.error(f"Error buscando {ean} en NINI: {e}", exc_info=True)
-        print(f"❌ NINI | {ean} | Error")
+        logging.error(f"❌ NINI: Error buscando {ean}: {e}")
         return "No encontrado"
 
 # =====================================================
@@ -614,15 +615,19 @@ def run_scraper(selection, log_queue=None, input_df=None, ignore_cache=False, pa
             logging.info("--- Iniciando proceso NINI ---")
             try:
                 login_nini(driver)
-                iniciar_pedido_nini(driver)
+                if iniciar_pedido_nini(driver):
+                    for i, row in df.iterrows():
+                        check_pause()
+                        if str(row["Precio NINI"]) not in ["Pendiente", "No encontrado", "Error"]:
+                            continue
 
-                for i, row in df.iterrows():
-                    check_pause()
-                    if str(row["Precio NINI"]) not in ["Pendiente", "No encontrado", "Error"]:
-                        continue
-
-                    df.at[i, "Precio NINI"] = buscar_precio_nini(driver, row["SKU"])
-                    df.to_excel(OUTPUT_FILE, index=False)
+                        df.at[i, "Precio NINI"] = buscar_precio_nini(driver, row["SKU"])
+                        df.to_excel(OUTPUT_FILE, index=False)
+                else:
+                    logging.error("⚠️ Se saltará la búsqueda en NINI por falla en la inicialización del pedido.")
+                    for i, _ in df.iterrows():
+                        if df.at[i, "Precio NINI"] == "Pendiente":
+                            df.at[i, "Precio NINI"] = "Error"
             except Exception as e:
                  logging.error(f"Error en bloque NINI: {e}")
             
