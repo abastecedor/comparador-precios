@@ -1,0 +1,66 @@
+# Imagen base de Python con soporte para Chrome
+FROM python:3.11-slim
+
+# Evitar prompts interactivos durante la instalación
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Instalar dependencias del sistema y Chrome
+RUN apt-get update && apt-get install -y \
+    wget \
+    gnupg \
+    unzip \
+    curl \
+    # Dependencias de Chrome
+    libnss3 \
+    libgconf-2-4 \
+    libfontconfig1 \
+    libxss1 \
+    libasound2 \
+    libxtst6 \
+    libgbm1 \
+    libgtk-3-0 \
+    libx11-xcb1 \
+    libdbus-glib-1-2 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    xdg-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+# Instalar Google Chrome
+RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable \
+    && rm -rf /var/lib/apt/lists/*
+
+# Directorio de trabajo
+WORKDIR /app
+
+# Copiar requirements primero (para cache de Docker)
+COPY requirements.txt .
+
+# Instalar dependencias de Python
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar el resto de la aplicación
+COPY . .
+
+# Crear directorio para archivos temporales
+RUN mkdir -p /app/data
+
+# Variables de entorno
+ENV PYTHONUNBUFFERED=1
+ENV CHROME_BIN=/usr/bin/google-chrome
+ENV DISPLAY=:99
+
+# Puerto (Railway asigna automáticamente)
+EXPOSE 5000
+
+# Comando de inicio
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "300", "--workers", "1", "--threads", "4", "app:app"]

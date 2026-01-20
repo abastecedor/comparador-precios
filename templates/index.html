@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comparador de Precios</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🔍 Comparador de Precios</h1>
+            <p>Selecciona los supermercados y comienza el análisis automático.</p>
+        </header>
+
+        <main>
+            <div class="card selection-card">
+                <h2>Supermercados</h2>
+                <form id="scraperForm">
+                    <div class="file-input-container">
+                        <label for="csvFile">Archivo de Productos (CSV o Excel)</label>
+                        <input type="file" id="csvFile" name="file" accept=".csv, .xlsx, .xls">
+                        <small style="display: block; margin-top: 5px; color: #666;">Columnas requeridas: codigo, ean,
+                            descripcion</small>
+                    </div>
+
+                    <div class="checkbox-group">
+                        <label class="checkbox-container">
+                            <input type="checkbox" name="nini" checked>
+                            <span class="checkmark"></span>
+                            Nini
+                        </label>
+                        <label class="checkbox-container">
+                            <input type="checkbox" name="carrefour" checked>
+                            <span class="checkmark"></span>
+                            Carrefour
+                        </label>
+                        <label class="checkbox-container">
+                            <input type="checkbox" name="vea" checked>
+                            <span class="checkmark"></span>
+                            Vea
+                        </label>
+                        <label class="checkbox-container">
+                            <input type="checkbox" name="disco" checked>
+                            <span class="checkmark"></span>
+                            Disco
+                        </label>
+                    </div>
+
+                    <div
+                        style="margin-bottom: 2rem; padding: 10px; background: #fff3cd; border-radius: 8px; border: 1px solid #ffeeba;">
+                        <label class="checkbox-container" style="margin:0; width:auto; border:none; padding:0;">
+                            <input type="checkbox" name="ignore_cache">
+                            <span class="checkmark"></span>
+                            <span style="font-weight:600; color:#856404;">Forzar Re-escaneo (Ignorar resultados
+                                anteriores)</span>
+                        </label>
+                    </div>
+
+                    <button type="submit" id="startBtn" class="btn primary">
+                        <span class="btn-text">Iniciar Escaneo</span>
+                        <div class="loader" style="display: none;"></div>
+                    </button>
+                </form>
+            </div>
+
+            <div class="card console-card">
+                <div class="console-header">
+                    <h2>Consola de Ejecución</h2>
+                    <span id="statusIndicator" class="status-badge ready">Listo</span>
+                </div>
+                <div id="consoleOutput" class="console-output">
+                    <div class="log-line info">Esperando para iniciar...</div>
+                </div>
+            </div>
+
+            <div id="resultSection" class="card result-card" style="display: none;">
+                <h2>🎉 Proceso Finalizado</h2>
+                <p>El archivo de precios ha sido generado exitosamente.</p>
+                <a href="/download" class="btn success">Descargar Excel</a>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.getElementById('scraperForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const btn = document.getElementById('startBtn');
+            const btnText = btn.querySelector('.btn-text');
+            const loader = btn.querySelector('.loader');
+            const consoleOutput = document.getElementById('consoleOutput');
+            const statusIndicator = document.getElementById('statusIndicator');
+            const resultSection = document.getElementById('resultSection');
+
+            // Reset UI
+            consoleOutput.innerHTML = '';
+            resultSection.style.display = 'none';
+            btn.disabled = true;
+            btnText.style.display = 'none';
+            loader.style.display = 'block';
+            statusIndicator.className = 'status-badge running';
+            statusIndicator.textContent = 'Ejecutando...';
+
+            const formData = new FormData(this);
+
+            try {
+                // Start process
+                const response = await fetch('/start', {
+                    method: 'POST',
+                    body: formData // Send as FormData to support file upload
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.message || 'Error al iniciar el proceso');
+                }
+
+                // Connect to EventSource for logs
+                const eventSource = new EventSource('/stream_logs');
+
+                eventSource.onmessage = function (event) {
+                    const data = JSON.parse(event.data);
+
+                    if (data.heartbeat) return;
+
+                    if (data.message === 'STOP_SIGNAL') {
+                        eventSource.close();
+                        finishProcess();
+                        return;
+                    }
+
+                    const logLine = document.createElement('div');
+                    logLine.className = `log-line ${data.level.toLowerCase()}`;
+                    logLine.textContent = `> ${data.message}`;
+                    consoleOutput.appendChild(logLine);
+                    consoleOutput.scrollTop = consoleOutput.scrollHeight;
+                };
+
+                eventSource.onerror = function () {
+                    eventSource.close();
+                    if (statusIndicator.textContent !== 'Completado') {
+                        const logLine = document.createElement('div');
+                        logLine.className = 'log-line error';
+                        logLine.textContent = '> Conexión perdida con el servidor.';
+                        consoleOutput.appendChild(logLine);
+                        resetBtn();
+                    }
+                };
+
+            } catch (error) {
+                console.error(error);
+                const logLine = document.createElement('div');
+                logLine.className = 'log-line error';
+                logLine.textContent = `> Error: ${error.message}`;
+                consoleOutput.appendChild(logLine);
+                resetBtn();
+                statusIndicator.className = 'status-badge error';
+                statusIndicator.textContent = 'Error';
+            }
+        });
+
+        function finishProcess() {
+            const btn = document.getElementById('startBtn');
+            const resultSection = document.getElementById('resultSection');
+            const statusIndicator = document.getElementById('statusIndicator');
+
+            statusIndicator.className = 'status-badge completed';
+            statusIndicator.textContent = 'Completado';
+            resultSection.style.display = 'block';
+            resetBtn();
+        }
+
+        function resetBtn() {
+            const btn = document.getElementById('startBtn');
+            const btnText = btn.querySelector('.btn-text');
+            const loader = btn.querySelector('.loader');
+
+            btn.disabled = false;
+            btnText.style.display = 'block';
+            loader.style.display = 'none';
+        }
+    </script>
+</body>
+
+</html>

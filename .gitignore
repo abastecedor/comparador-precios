@@ -1,0 +1,39 @@
+# Virtual environments
+venv/
+comparador_precios/
+__pycache__/
+*.pyc
+
+# Data files (no subir datos sensibles)
+planilla_ofertas.xlsx
+precios_resultados*
+*.xls
+
+# System files
+.DS_Store
+
+# Logs
+logs/
+*.log
+phantomjsdriver.log
+geckodriver.log
+
+# Secrets and credentials
+.env
+*.env
+api.env
+client_secret*
+scraper-*.json
+token.json
+
+# Chrome local (no necesario en Railway)
+chrome-win64/
+
+# Temp files
+~$*
+*.tmp
+
+# Local scripts
+*.bat
+como_acceder_venv.txt
+log_ejecucion.txt
