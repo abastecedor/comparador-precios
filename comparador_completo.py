@@ -357,10 +357,9 @@ def buscar_precio_carrefour(driver, ean):
         driver.get(url)
 
         # Esperar que la página cargue completamente
-        WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, 6).until(
             EC.presence_of_element_located((By.TAG_NAME, "body"))
-        )
-        time.sleep(0.5)  # Breve pausa para JS dinámico 
+        ) 
 
         # 1. Chequeo explícito de "No encontrado"
         src = driver.page_source
@@ -457,10 +456,9 @@ def buscar_precio_vea(driver, ean):
         driver.get(url)
 
         # Esperar que la página cargue completamente
-        WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, 6).until(
             EC.presence_of_element_located((By.TAG_NAME, "body"))
         )
-        time.sleep(0.5)  # Breve pausa para JS dinámico
 
         # 1. Chequeo explícito de "No encontrado"
         # Estrategia 1: Clase específica reportada por el usuario
@@ -502,13 +500,13 @@ def buscar_precio_vea(driver, ean):
             # 1. Verificar existencia del article con clase específica solicitada por el usuario
             article_selector = "article.vtex-product-summary-2-x-element.pointer.pt3.pb4.flex.flex-column.h-100"
             try:
-                article_container = WebDriverWait(driver, 10).until(
+                article_container = WebDriverWait(driver, 6).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, article_selector))
                 )
                 logging.info(f"VEA: Articulo verificado para {ean}")
             except:
                 # Intento con selector flexible por si hay leves variaciones en clases
-                article_container = WebDriverWait(driver, 5).until(
+                article_container = WebDriverWait(driver, 4).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, "article[class*='vtex-product-summary-2-x-element']"))
                 )
 
@@ -575,10 +573,9 @@ def buscar_precio_disco(driver, ean):
         driver.get(url)
 
         # Esperar que la página cargue completamente
-        WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, 6).until(
             EC.presence_of_element_located((By.TAG_NAME, "body"))
         )
-        time.sleep(0.5)  # Breve pausa para JS dinámico
 
         # 1. Chequeo explícito de "No encontrado"
         try:
@@ -610,13 +607,13 @@ def buscar_precio_disco(driver, ean):
             # 1. Verificar existencia del article con clase específica solicitada por el usuario
             article_selector = "article.vtex-product-summary-2-x-element.pointer.pt3.pb4.flex.flex-column.h-100"
             try:
-                article_container = WebDriverWait(driver, 10).until(
+                article_container = WebDriverWait(driver, 6).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, article_selector))
                 )
                 logging.info(f"DISCO: Articulo verificado para {ean}")
             except:
                 # Intento con selector flexible por si hay leves variaciones en clases
-                article_container = WebDriverWait(driver, 5).until(
+                article_container = WebDriverWait(driver, 4).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, "article[class*='vtex-product-summary-2-x-element']"))
                 )
 
@@ -761,7 +758,23 @@ def worker_site(site_name, df, results_dict, selection, log_queue=None, pause_ev
     driver = None
     try:
         logging.info(f"[{site_name.upper()}] 🚀 Iniciando worker thread...")
-        driver = configurar_driver(optimized=True)
+        
+        # Intentar configurar driver con retry
+        max_driver_retries = 2
+        for attempt in range(max_driver_retries):
+            try:
+                driver = configurar_driver(optimized=True)
+                logging.info(f"[{site_name.upper()}] ✅ Driver inicializado correctamente")
+                break
+            except Exception as driver_error:
+                if attempt < max_driver_retries - 1:
+                    logging.warning(f"[{site_name.upper()}] ⚠️ Error al iniciar driver (intento {attempt + 1}/{max_driver_retries}): {driver_error}")
+                    import time
+                    time.sleep(2)
+                else:
+                    logging.error(f"[{site_name.upper()}] ❌ Error fatal al iniciar driver después de {max_driver_retries} intentos: {driver_error}")
+                    raise
+        
         
         # Función para chequear pausa
         def check_pause():
