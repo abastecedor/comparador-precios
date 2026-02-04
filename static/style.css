@@ -159,6 +159,15 @@ h2 {
     background-color: #059669;
 }
 
+.btn.reset {
+    background-color: #f97316;
+    color: white;
+}
+
+.btn.reset:hover {
+    background-color: #ea580c;
+}
+
 .btn.primary:disabled,
 .btn.pause:disabled,
 .btn.continue:disabled {
@@ -274,4 +283,202 @@ h2 {
     display: flex;
     gap: 1rem;
     margin-top: 1rem;
+}
+
+/* ===================================================== */
+/* TABS */
+/* ===================================================== */
+.tabs-container {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.tab-button {
+    padding: 0.75rem 1.5rem;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: -2px;
+}
+
+.tab-button:hover {
+    color: var(--text-color);
+    background-color: #f9fafb;
+}
+
+.tab-button.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    background-color: #eff6ff;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* ===================================================== */
+/* MONITOR TAB */
+/* ===================================================== */
+.monitor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.monitor-header h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #374151;
+}
+
+.progress-text {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.table-container {
+    overflow-x: auto;
+    max-height: 500px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+/* ===================================================== */
+/* PRODUCTS TABLE */
+/* ===================================================== */
+.products-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.products-table thead {
+    background-color: #f9fafb;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.products-table th {
+    padding: 0.75rem 0.5rem;
+    text-align: left;
+    font-weight: 600;
+    color: #374151;
+    border-bottom: 2px solid var(--border-color);
+    white-space: nowrap;
+}
+
+.products-table tbody tr {
+    border-bottom: 1px solid #f3f4f6;
+    transition: background-color 0.15s;
+}
+
+.products-table tbody tr:hover {
+    background-color: #fafafa;
+}
+
+.products-table td {
+    padding: 0.75rem 0.5rem;
+    color: var(--text-color);
+}
+
+.descripcion-cell {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.price-cell {
+    text-align: center;
+    font-weight: 500;
+}
+
+.empty-state {
+    text-align: center;
+    color: var(--text-secondary);
+    font-style: italic;
+    padding: 2rem !important;
+}
+
+/* ===================================================== */
+/* PRICE STATUS */
+/* ===================================================== */
+.price-status {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.3s;
+}
+
+.price-status.pending {
+    background-color: #f3f4f6;
+    color: #6b7280;
+}
+
+.price-status.found {
+    background-color: #d1fae5;
+    color: #065f46;
+    animation: priceFound 0.5s ease-out;
+}
+
+.price-status.not-found {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.oferta {
+    display: block;
+    font-size: 0.75rem;
+    color: #059669;
+    margin-top: 0.125rem;
+}
+
+@keyframes priceFound {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    }
+
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+    }
+
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .products-table {
+        font-size: 0.75rem;
+    }
+
+    .products-table th,
+    .products-table td {
+        padding: 0.5rem 0.25rem;
+    }
+
+    .descripcion-cell {
+        max-width: 100px;
+    }
 }

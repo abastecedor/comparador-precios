@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comparador de Precios</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"> -->
 </head>
 
 <body>
@@ -74,17 +74,62 @@
                         <span class="btn-text">Iniciar Escaneo</span>
                         <div class="loader" style="display: none;"></div>
                     </button>
+
+                    <button type="button" id="resetBtn" class="btn reset" style="margin-top: 0.5rem; display: none;">
+                        🔄 Resetear Sistema
+                    </button>
+                    <small id="resetHelp" style="display: none; color: #6b7280; margin-top: 0.5rem; display: block;">
+                        Si el proceso está colgado, usa este botón para limpiar y reiniciar.
+                    </small>
                 </form>
             </div>
 
             <div class="card console-card">
-                <div class="console-header">
-                    <h2>Consola de Ejecución</h2>
-                    <span id="statusIndicator" class="status-badge ready">Listo</span>
+                <!-- Pestañas -->
+                <div class="tabs-container">
+                    <button class="tab-button active" data-tab="monitor">📊 Monitor en Vivo</button>
+                    <button class="tab-button" data-tab="console">📋 Consola de Logs</button>
                 </div>
-                <div id="consoleOutput" class="console-output">
-                    <div class="log-line info">Esperando para iniciar...</div>
+
+                <!-- Contenido Tab Monitor -->
+                <div id="monitorTab" class="tab-content active">
+                    <div class="monitor-header">
+                        <h3>Productos en Proceso</h3>
+                        <span id="progressIndicator" class="progress-text">Esperando inicio...</span>
+                    </div>
+                    <div class="table-container">
+                        <table id="productsTable" class="products-table">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>EAN</th>
+                                    <th>Descripción</th>
+                                    <th>NINI</th>
+                                    <th>Carrefour</th>
+                                    <th>VEA</th>
+                                    <th>DISCO</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productsTableBody">
+                                <tr>
+                                    <td colspan="7" class="empty-state">No hay productos cargados</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
+
+                <!-- Contenido Tab Consola -->
+                <div id="consoleTab" class="tab-content">
+                    <div class="console-header">
+                        <h2>Consola de Ejecución</h2>
+                        <span id="statusIndicator" class="status-badge ready">Listo</span>
+                    </div>
+                    <div id="consoleOutput" class="console-output">
+                        <div class="log-line info">Esperando para iniciar...</div>
+                    </div>
+                </div>
+
                 <div class="controls-group" id="executionControls" style="display: none;">
                     <button id="pauseBtn" class="btn pause">Pausar</button>
                     <button id="continueBtn" class="btn continue" style="display: none;">Continuar</button>
@@ -100,6 +145,135 @@
     </div>
 
     <script>
+        console.log("NINI UI: Script cargado correctamente.");
+
+        // =====================================================
+        // TAB SWITCHING
+        // =====================================================
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tabName = button.getAttribute('data-tab');
+
+                // Remove active class from all buttons and contents
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabContents.forEach(content => content.classList.remove('active'));
+
+                // Add active class to clicked button and corresponding content
+                button.classList.add('active');
+                document.getElementById(tabName + 'Tab').classList.add('active');
+            });
+        });
+
+        // =====================================================
+        // PRODUCT TABLE MANAGEMENT
+        // =====================================================
+        const productsMap = new Map(); // Store products by index
+        let productEventSource = null;
+
+        function initializeProductsTable() {
+            const tbody = document.getElementById('productsTableBody');
+            tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Cargando productos...</td></tr>';
+            productsMap.clear();
+        }
+
+        function addProductRow(productData) {
+            const tbody = document.getElementById('productsTableBody');
+
+            // Remove empty state message if exists
+            if (tbody.querySelector('.empty-state')) {
+                tbody.innerHTML = '';
+            }
+
+            const row = document.createElement('tr');
+            row.id = `product-row-${productData.index}`;
+            row.innerHTML = `
+                <td>${productData.codigo}</td>
+                <td>${productData.sku}</td>
+                <td class="descripcion-cell">${productData.descripcion}</td>
+                <td class="price-cell" data-site="nini"><span class="price-status pending">Pendiente</span></td>
+                <td class="price-cell" data-site="carrefour"><span class="price-status pending">Pendiente</span></td>
+                <td class="price-cell" data-site="vea"><span class="price-status pending">Pendiente</span></td>
+                <td class="price-cell" data-site="disco"><span class="price-status pending">Pendiente</span></td>
+            `;
+            tbody.appendChild(row);
+
+            // Store product data
+            productsMap.set(productData.index, {
+                ...productData,
+                nini: 'Pendiente',
+                carrefour: 'Pendiente',
+                vea: 'Pendiente',
+                disco: 'Pendiente'
+            });
+        }
+
+        function updateProductPrice(update) {
+            const product = productsMap.get(update.index);
+            if (!product) return;
+
+            // Update product data
+            product[update.site] = update.precio;
+
+            // Update UI
+            const row = document.getElementById(`product-row-${update.index}`);
+            if (!row) return;
+
+            const cell = row.querySelector(`[data-site="${update.site}"]`);
+            if (!cell) return;
+
+            // Determine status class
+            let statusClass = 'pending';
+            let displayText = update.precio;
+
+            if (update.precio === 'No encontrado' || update.precio === 'Error') {
+                statusClass = 'not-found';
+            } else if (update.precio && update.precio !== 'Pendiente') {
+                statusClass = 'found';
+                if (update.oferta) {
+                    displayText = `${update.precio}<br><small class="oferta">${update.oferta}</small>`;
+                }
+            }
+
+            cell.innerHTML = `<span class="price-status ${statusClass}">${displayText}</span>`;
+        }
+
+        function connectToProductStream() {
+            if (productEventSource) productEventSource.close();
+
+            productEventSource = new EventSource('/stream_products');
+
+            productEventSource.onmessage = function (event) {
+                const data = JSON.parse(event.data);
+
+                if (data.type === 'heartbeat') return;
+
+                if (data.type === 'stop') {
+                    productEventSource.close();
+                    document.getElementById('progressIndicator').textContent = '✅ Completado';
+                    return;
+                }
+
+                if (data.type === 'init') {
+                    addProductRow(data);
+                    const total = productsMap.size;
+                    document.getElementById('progressIndicator').textContent = `Cargados ${total} productos`;
+                } else if (data.type === 'update') {
+                    updateProductPrice(data);
+                }
+            };
+
+            productEventSource.onerror = function () {
+                productEventSource.close();
+                console.log('Product stream connection error');
+            };
+        }
+
+        // =====================================================
+        // FORM SUBMISSION
+        // =====================================================
         document.getElementById('scraperForm').addEventListener('submit', async function (e) {
             e.preventDefault();
 
@@ -119,6 +293,10 @@
             statusIndicator.className = 'status-badge running';
             statusIndicator.textContent = 'Ejecutando...';
 
+            // Reset and initialize product table
+            initializeProductsTable();
+            document.getElementById('progressIndicator').textContent = 'Iniciando...';
+
             const formData = new FormData(this);
             document.getElementById('executionControls').style.display = 'flex';
             document.getElementById('pauseBtn').style.display = 'block';
@@ -137,36 +315,43 @@
                 }
 
                 // Connect to EventSource for logs
-                const eventSource = new EventSource('/stream_logs');
+                let eventSource;
+                function connectToLogs() {
+                    if (eventSource) eventSource.close();
 
-                eventSource.onmessage = function (event) {
-                    const data = JSON.parse(event.data);
+                    eventSource = new EventSource('/stream_logs');
 
-                    if (data.heartbeat) return;
+                    eventSource.onmessage = function (event) {
+                        const data = JSON.parse(event.data);
 
-                    if (data.message === 'STOP_SIGNAL') {
-                        eventSource.close();
-                        finishProcess();
-                        return;
-                    }
+                        if (data.heartbeat) return;
 
-                    const logLine = document.createElement('div');
-                    logLine.className = `log-line ${data.level.toLowerCase()}`;
-                    logLine.textContent = `> ${data.message}`;
-                    consoleOutput.appendChild(logLine);
-                    consoleOutput.scrollTop = consoleOutput.scrollHeight;
-                };
+                        if (data.message === 'STOP_SIGNAL') {
+                            eventSource.close();
+                            finishProcess();
+                            return;
+                        }
 
-                eventSource.onerror = function () {
-                    eventSource.close();
-                    if (statusIndicator.textContent !== 'Completado') {
                         const logLine = document.createElement('div');
-                        logLine.className = 'log-line error';
-                        logLine.textContent = '> Conexión perdida con el servidor.';
+                        logLine.className = `log-line ${data.level.toLowerCase()}`;
+                        logLine.textContent = `> ${data.message}`;
                         consoleOutput.appendChild(logLine);
-                        resetBtn();
-                    }
-                };
+                        consoleOutput.scrollTop = consoleOutput.scrollHeight;
+                    };
+
+                    eventSource.onerror = function () {
+                        eventSource.close();
+                        const status = document.getElementById('statusIndicator').textContent;
+                        if (status !== 'Completado' && status !== 'Error') {
+                            console.log('NINI: Conexión intermitente. Reintentando reconexión...');
+                            // Pequeña espera antes de reintentar para no saturar
+                            setTimeout(connectToLogs, 2000);
+                        }
+                    };
+                }
+
+                connectToLogs();
+                connectToProductStream();
 
             } catch (error) {
                 console.error(error);
@@ -177,6 +362,43 @@
                 resetBtn();
                 statusIndicator.className = 'status-badge error';
                 statusIndicator.textContent = 'Error';
+
+                // Mostrar botón de reset si es error de thread
+                if (error.message.includes('ya está en ejecución')) {
+                    document.getElementById('resetBtn').style.display = 'block';
+                    document.getElementById('resetHelp').style.display = 'block';
+                }
+            }
+        });
+
+        // Reset button handler
+        document.getElementById('resetBtn').addEventListener('click', async function () {
+            if (!confirm('¿Estás seguro de que quieres resetear el sistema? Esto detendrá cualquier proceso en curso.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/reset', { method: 'POST' });
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert('✅ ' + result.message);
+                    document.getElementById('resetBtn').style.display = 'none';
+                    document.getElementById('resetHelp').style.display = 'none';
+
+                    // Reset UI
+                    const statusIndicator = document.getElementById('statusIndicator');
+                    statusIndicator.className = 'status-badge ready';
+                    statusIndicator.textContent = 'Listo';
+
+                    document.getElementById('consoleOutput').innerHTML = '<div class="log-line info">Sistema reseteado. Esperando para iniciar...</div>';
+                    document.getElementById('productsTableBody').innerHTML = '<tr><td colspan="7" class="empty-state">No hay productos cargados</td></tr>';
+                } else {
+                    alert('❌ Error: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error al resetear:', error);
+                alert('❌ Error al resetear: ' + error.message);
             }
         });
 
