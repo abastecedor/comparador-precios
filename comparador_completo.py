@@ -93,6 +93,12 @@ def configurar_driver(optimized=True):
         options.add_argument("--disable-gpu")
         options.add_argument("--disable-extensions")
         options.add_argument("--remote-debugging-port=9222")
+        
+        # CRÍTICO: Prevenir "unable to connect to renderer"
+        options.add_argument("--single-process")  # Ejecutar en proceso único
+        options.add_argument("--disable-software-rasterizer")
+        options.add_argument("--disable-setuid-sandbox")
+        
         # Flags para reducir consumo de memoria y evitar crashes
         options.add_argument("--disable-renderer-backgrounding")
         options.add_argument("--disable-background-timer-throttling")
@@ -105,6 +111,7 @@ def configurar_driver(optimized=True):
         options.add_argument("--mute-audio")
         
         logging.info("Configuración Railway/Docker optimizada aplicada")
+
 
     # Retry logic para evitar conflictos de archivos en multithreading
     max_retries = 3
