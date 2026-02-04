@@ -112,7 +112,33 @@ def configurar_driver(optimized=True):
         try:
             # Crear un Service único para este thread con un puerto aleatorio
             # Esto evita conflictos cuando múltiples threads intentan usar el mismo chromedriver
-            chromedriver_path = ChromeDriverManager().install()
+            
+            # Manejar errores de ChromeDriver corrupto (común en Railway/Docker)
+            try:
+                chromedriver_path = ChromeDriverManager().install()
+            except (EOFError, IndexError, Exception) as cdm_error:
+                error_str = str(cdm_error)
+                # Si es un error de ZIP corrupto, limpiar caché y reintentar
+                if "EOFError" in str(type(cdm_error).__name__) or "tuple index out of range" in error_str or "IndexError" in str(type(cdm_error).__name__):
+                    logging.warning(f"⚠️ ChromeDriver corrupto detectado. Limpiando caché...")
+                    try:
+                        import shutil
+                        cache_path = os.path.expanduser("~/.wdm")
+                        if os.path.exists(cache_path):
+                            shutil.rmtree(cache_path)
+                            logging.info(f"✅ Caché limpiado: {cache_path}")
+                    except Exception as cache_error:
+                        logging.warning(f"No se pudo limpiar caché: {cache_error}")
+                    
+                    # Reintentar instalación después de limpiar caché
+                    if attempt < max_retries - 1:
+                        logging.info(f"Reintentando instalación de ChromeDriver (intento {attempt + 2}/{max_retries})...")
+                        time.sleep(1)
+                        continue
+                    else:
+                        raise
+                else:
+                    raise
             
             # Generar un puerto único basado en thread ID y número aleatorio
             thread_id = threading.current_thread().ident
@@ -157,6 +183,7 @@ def configurar_driver(optimized=True):
                 # Otro tipo de error, no reintentar
                 logging.critical(f"Error fatal al configurar driver: {e}", exc_info=True)
                 raise
+
 
 # =====================================================
 # NINI
