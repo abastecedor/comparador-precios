@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: comparador-precios
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: RAILWAY_ENVIRONMENT
+        value: true
+      - key: PORT
+        value: 10000
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: OPENAI_API_KEY
+        sync: false   # Lo vas a cargar manualmente en el dashboard de Render
+    healthCheckPath: /
+    autoDeploy: true

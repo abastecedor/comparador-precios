@@ -78,10 +78,10 @@ RUN mkdir -p /app/imagenes_productos
 # Variables de entorno
 ENV PYTHONUNBUFFERED=1
 ENV RAILWAY_ENVIRONMENT=true
-ENV PORT=8080
+ENV PORT=10000
 
 # Exponer puerto
-EXPOSE 8080
+EXPOSE 10000
 
 # Comando de inicio
 CMD gunicorn --bind 0.0.0.0:$PORT --timeout 300 --workers 1 --threads 4 app:app
