@@ -1,0 +1,7 @@
+flask==3.0.0
+gunicorn==21.2.0
+pandas==2.1.4
+openpyxl==3.1.2
+selenium==4.16.0
+webdriver-manager>=4.0.2
+requests>=2.31.0

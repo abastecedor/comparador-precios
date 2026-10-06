@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comparador de Precios</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"> -->
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Gonzi bot 2.0</h1>
+            <p>Selecciona los supermercados y comienza el análisis automático.</p>
+        </header>
+
+        <main>
+            <div class="card selection-card">
+                <h2>Supermercados</h2>
+                <form id="scraperForm">
+                    <div class="file-input-container">
+                        <label for="csvFile">Archivo de Productos (CSV o Excel)</label>
+                        <input type="file" id="csvFile" name="file" accept=".csv, .xlsx, .xls">
+                        <small style="display: block; margin-top: 5px; color: #666;">Columnas requeridas: codigo, ean,
+                            descripcion</small>
+                    </div>
+
+                    <div class="input-container" style="margin-bottom: 2rem;">
+                        <label for="individualEan"
+                            style="display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.9rem; color: #444;">Búsqueda
+                            por EAN Individual (Opcional)</label>
+                        <input type="text" id="individualEan" name="individual_ean" placeholder="Ej: 7791234567890"
+                            style="width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 1rem; box-sizing: border-box;">
+                        <small style="display: block; margin-top: 5px; color: #666; font-size: 0.8rem;">Si ingresas un
+                            EAN, tendrá prioridad sobre el archivo subido.</small>
+                    </div>
+
+                    <div class="checkbox-group">
+                        <label class="checkbox-container">
+                            <input type="checkbox" name="nini" checked>
+                            <span class="checkmark"></span>
+                            Nini
+                        </label>
+                        <label class="checkbox-container">
+                            <input type="checkbox" name="carrefour" checked>
+                            <span class="checkmark"></span>
+                            Carrefour
+                        </label>
+                        <label class="checkbox-container">
+                            <input type="checkbox" name="vea" checked>
+                            <span class="checkmark"></span>
+                            Vea
+                        </label>
+                        <label class="checkbox-container">
+                            <input type="checkbox" name="disco" checked>
+                            <span class="checkmark"></span>
+                            Disco
+                        </label>
+                        <label class="checkbox-container">
+                            <input type="checkbox" name="maxiconsumo" checked>
+                            <span class="checkmark"></span>
+                            MaxiConsumo
+                        </label>
+                        <label class="checkbox-container">
+                            <input type="checkbox" name="coto" checked>
+                            <span class="checkmark"></span>
+                            Coto
+                        </label>
+                    </div>
+
+                    <div
+                        style="margin-bottom: 2rem; padding: 10px; background: #fff3cd; border-radius: 8px; border: 1px solid #ffeeba;">
+                        <label class="checkbox-container" style="margin:0; width:auto; border:none; padding:0;">
+                            <input type="checkbox" name="ignore_cache">
+                            <span class="checkmark"></span>
+                            <span style="font-weight:600; color:#856404;">Forzar Re-escaneo (Ignorar resultados
+                                anteriores)</span>
+                        </label>
+                    </div>
+
+                    <button type="submit" id="startBtn" class="btn primary">
+                        <span class="btn-text">Iniciar Escaneo</span>
+                        <div class="loader" style="display: none;"></div>
+                    </button>
+
+                    <button type="button" id="resetBtn" class="btn reset" style="margin-top: 0.5rem; display: none;">
+                        🔄 Resetear Sistema
+                    </button>
+                    <small id="resetHelp" style="display: none; color: #6b7280; margin-top: 0.5rem; display: block;">
+                        Si el proceso está colgado, usa este botón para limpiar y reiniciar.
+                    </small>
+                </form>
+            </div>
+
+            <div class="card console-card">
+                <!-- Pestañas -->
+                <div class="tabs-container">
+                    <button class="tab-button active" data-tab="monitor">📊 Monitor en Vivo</button>
+                    <button class="tab-button" data-tab="console">📋 Consola de Logs</button>
+                </div>
+
+                <!-- Contenido Tab Monitor -->
+                <div id="monitorTab" class="tab-content active">
+                    <div class="monitor-header">
+                        <h3>Productos en Proceso</h3>
+                        <span id="progressIndicator" class="progress-text">Esperando inicio...</span>
+                    </div>
+                    <div class="table-container">
+                        <table id="productsTable" class="products-table">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>EAN</th>
+                                    <th>Descripción</th>
+                                    <th>NINI</th>
+                                    <th>Carrefour</th>
+                                    <th>VEA</th>
+                                    <th>DISCO</th>
+                                    <th>MaxiConsumo</th>
+                                    <th>Coto</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productsTableBody">
+                                <tr>
+                                    <td colspan="9" class="empty-state">No hay productos cargados</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Contenido Tab Consola -->
+                <div id="consoleTab" class="tab-content">
+                    <div class="console-header">
+                        <h2>Consola de Ejecución</h2>
+                        <span id="statusIndicator" class="status-badge ready">Listo</span>
+                    </div>
+                    <div id="consoleOutput" class="console-output">
+                        <div class="log-line info">Esperando para iniciar...</div>
+                    </div>
+                </div>
+
+                <div class="controls-group" id="executionControls" style="display: none;">
+                    <button id="pauseBtn" class="btn pause">Pausar</button>
+                    <button id="continueBtn" class="btn continue" style="display: none;">Continuar</button>
+                </div>
+            </div>
+
+            <div id="resultSection" class="card result-card" style="display: none;">
+                <h2>🎉 Proceso Finalizado</h2>
+                <p>El archivo de precios ha sido generado exitosamente.</p>
+                <a href="/download" class="btn success">Descargar Excel</a>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- SECCIÓN: OBTENER IMÁGENES                   -->
+            <!-- ============================================ -->
+            <div class="card" id="imageSection" style="margin-top: 1.5rem;">
+                <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem;">
+                    <span style="font-size:1.5rem;">🖼️</span>
+                    <h2 style="margin:0;">Obtener Imágenes de Productos</h2>
+                </div>
+                <p style="color:#555; font-size:0.9rem; margin-bottom:1rem;">
+                    Descarga las imágenes de todos los productos y las guarda en la carpeta
+                    <code style="background:#f3f4f6; padding:2px 6px; border-radius:4px;">imagenes_productos/</code>
+                    con el nombre del EAN. Usa el archivo del último escaneo o sube uno nuevo.
+                </p>
+
+                <form id="imageForm" style="display:flex; flex-direction:column; gap:0.75rem;">
+                    <div class="file-input-container">
+                        <label for="imageFile">Archivo de productos (opcional — usa el del último escaneo si no se sube)</label>
+                        <input type="file" id="imageFile" name="file" accept=".csv,.xlsx,.xls">
+                    </div>
+                    <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+                        <button type="submit" id="imageBtn" class="btn primary" style="flex:1; min-width:180px;">
+                            <span class="btn-text">🖼️ Obtener Imágenes</span>
+                            <div class="loader" style="display:none;"></div>
+                        </button>
+                        <button type="button" id="openFolderBtn" class="btn" onclick="openImagesFolder()"
+                            style="flex:1; min-width:180px; background:#6b7280; color:#fff;">
+                            📂 Abrir Carpeta
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Barra de progreso -->
+                <div id="imageProgressContainer" style="display:none; margin-top:1.25rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                        <span id="imageProgressLabel" style="font-weight:600; font-size:0.95rem;">0 / 0</span>
+                        <span id="imageProgressStats" style="font-size:0.85rem; color:#555;"></span>
+                    </div>
+                    <div style="background:#e5e7eb; border-radius:999px; height:12px; overflow:hidden;">
+                        <div id="imageProgressBar"
+                            style="height:100%; width:0%; background:linear-gradient(90deg,#6366f1,#8b5cf6); border-radius:999px; transition:width 0.3s ease;">
+                        </div>
+                    </div>
+
+                    <!-- Log de imágenes -->
+                    <div id="imageLog"
+                        style="margin-top:1rem; max-height:220px; overflow-y:auto; background:#1e1e2e; border-radius:8px; padding:0.75rem; font-family:monospace; font-size:0.8rem; color:#cdd6f4;">
+                    </div>
+
+                    <!-- Resultado final -->
+                    <div id="imageDoneMsg" style="display:none; margin-top:1rem; padding:0.75rem 1rem; border-radius:8px; background:#d1fae5; border:1px solid #6ee7b7; color:#065f46; font-weight:600;">
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        console.log("NINI UI: Script cargado correctamente.");
+
+        // =====================================================
+        // TAB SWITCHING
+        // =====================================================
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tabName = button.getAttribute('data-tab');
+
+                // Remove active class from all buttons and contents
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabContents.forEach(content => content.classList.remove('active'));
+
+                // Add active class to clicked button and corresponding content
+                button.classList.add('active');
+                document.getElementById(tabName + 'Tab').classList.add('active');
+            });
+        });
+
+        // =====================================================
+        // PRODUCT TABLE MANAGEMENT
+        // =====================================================
+        const productsMap = new Map(); // Store products by index
+        let productEventSource = null;
+
+        function initializeProductsTable() {
+            const tbody = document.getElementById('productsTableBody');
+            tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Cargando productos...</td></tr>';
+            productsMap.clear();
+        }
+
+        function addProductRow(productData) {
+            const tbody = document.getElementById('productsTableBody');
+
+            // Remove empty state message if exists
+            if (tbody.querySelector('.empty-state')) {
+                tbody.innerHTML = '';
+            }
+
+            const row = document.createElement('tr');
+            row.id = `product-row-${productData.index}`;
+            row.innerHTML = `
+                <td>${productData.codigo}</td>
+                <td>${productData.sku}</td>
+                <td class="descripcion-cell">${productData.descripcion}</td>
+                <td class="price-cell" data-site="nini"><span class="price-status pending">Pendiente</span></td>
+                <td class="price-cell" data-site="carrefour"><span class="price-status pending">Pendiente</span></td>
+                <td class="price-cell" data-site="vea"><span class="price-status pending">Pendiente</span></td>
+                <td class="price-cell" data-site="disco"><span class="price-status pending">Pendiente</span></td>
+                <td class="price-cell" data-site="maxiconsumo"><span class="price-status pending">Pendiente</span></td>
+                <td class="price-cell" data-site="coto"><span class="price-status pending">Pendiente</span></td>
+            `;
+            tbody.appendChild(row);
+
+            // Store product data
+            productsMap.set(productData.index, {
+                ...productData,
+                nini: 'Pendiente',
+                carrefour: 'Pendiente',
+                vea: 'Pendiente',
+                disco: 'Pendiente',
+                maxiconsumo: 'Pendiente',
+                coto: 'Pendiente'
+            });
+        }
+
+        function updateProductPrice(update) {
+            console.log('📥 updateProductPrice llamada:', update);  // DEBUG
+            const product = productsMap.get(update.index);
+            if (!product) {
+                console.log('⚠️ Producto no encontrado:', update.index);  // DEBUG
+                return;
+            }
+
+            // Update product data
+            product[update.site] = update.precio;
+
+            // Update UI
+            const row = document.getElementById(`product-row-${update.index}`);
+            if (!row) return;
+
+            const cell = row.querySelector(`[data-site="${update.site}"]`);
+            if (!cell) return;
+
+            // Determine status class
+            let statusClass = 'pending';
+            let displayText = update.precio;
+
+            // FIXED: Verificar si hay oferta disponible
+            const hasOffer = update.oferta && update.oferta !== '' && update.oferta !== 'No encontrado';
+            const hasRegular = update.precio && update.precio !== 'No encontrado' && update.precio !== 'Error' && update.precio !== 'Pendiente';
+            console.log(`🔍 ${update.site}:`, { hasOffer, hasRegular, precio: update.precio, oferta: update.oferta });  // DEBUG
+
+            if (hasOffer || hasRegular) {
+                // Si hay CUALQUIER precio (oferta o regular), mostrar como encontrado
+                statusClass = 'found';
+
+                if (hasOffer && !hasRegular) {
+                    // Solo hay oferta
+                    displayText = `<strong>${update.oferta}</strong><br><small style="color: #10b981;">Oferta</small>`;
+                } else if (hasRegular && !hasOffer) {
+                    // Solo hay precio regular
+                    displayText = update.precio;
+                } else if (hasRegular && hasOffer) {
+                    // Ambos precios disponibles
+                    displayText = `${update.precio}<br><small class="oferta">${update.oferta}</small>`;
+                }
+            } else {
+                // No hay ningún precio válido
+                if (update.precio === 'Error') {
+                    statusClass = 'error';
+                    displayText = 'Error';
+                } else {
+                    statusClass = 'not-found';
+                    displayText = 'No encontrado';
+                }
+            }
+
+            cell.innerHTML = `<span class="price-status ${statusClass}">${displayText}</span>`;
+        }
+
+        function connectToProductStream() {
+            if (productEventSource) productEventSource.close();
+
+            productEventSource = new EventSource('/stream_products');
+
+            productEventSource.onmessage = function (event) {
+                const data = JSON.parse(event.data);
+
+                if (data.type === 'heartbeat') return;
+
+                if (data.type === 'stop') {
+                    productEventSource.close();
+                    document.getElementById('progressIndicator').textContent = '✅ Completado';
+                    return;
+                }
+
+                if (data.type === 'init') {
+                    addProductRow(data);
+                    const total = productsMap.size;
+                    document.getElementById('progressIndicator').textContent = `Cargados ${total} productos`;
+                } else if (data.type === 'update') {
+                    updateProductPrice(data);
+                }
+            };
+
+            productEventSource.onerror = function () {
+                productEventSource.close();
+                console.log('Product stream connection error');
+            };
+        }
+
+        // =====================================================
+        // FORM SUBMISSION
+        // =====================================================
+        document.getElementById('scraperForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const btn = document.getElementById('startBtn');
+            const btnText = btn.querySelector('.btn-text');
+            const loader = btn.querySelector('.loader');
+            const consoleOutput = document.getElementById('consoleOutput');
+            const statusIndicator = document.getElementById('statusIndicator');
+            const resultSection = document.getElementById('resultSection');
+
+            // Reset UI
+            consoleOutput.innerHTML = '';
+            resultSection.style.display = 'none';
+            btn.disabled = true;
+            btnText.style.display = 'none';
+            loader.style.display = 'block';
+            statusIndicator.className = 'status-badge running';
+            statusIndicator.textContent = 'Ejecutando...';
+
+            // Reset and initialize product table
+            initializeProductsTable();
+            document.getElementById('progressIndicator').textContent = 'Iniciando...';
+
+            const formData = new FormData(this);
+            document.getElementById('executionControls').style.display = 'flex';
+            document.getElementById('pauseBtn').style.display = 'block';
+            document.getElementById('continueBtn').style.display = 'none';
+
+            try {
+                // Start process
+                const response = await fetch('/start', {
+                    method: 'POST',
+                    body: formData // Send as FormData to support file upload
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.message || 'Error al iniciar el proceso');
+                }
+
+                // Connect to EventSource for logs
+                let eventSource;
+                function connectToLogs() {
+                    if (eventSource) eventSource.close();
+
+                    eventSource = new EventSource('/stream_logs');
+
+                    eventSource.onmessage = function (event) {
+                        const data = JSON.parse(event.data);
+
+                        if (data.heartbeat) return;
+
+                        if (data.message === 'STOP_SIGNAL') {
+                            eventSource.close();
+                            finishProcess();
+                            return;
+                        }
+
+                        const logLine = document.createElement('div');
+                        logLine.className = `log-line ${data.level.toLowerCase()}`;
+                        logLine.textContent = `> ${data.message}`;
+                        consoleOutput.appendChild(logLine);
+                        consoleOutput.scrollTop = consoleOutput.scrollHeight;
+                    };
+
+                    eventSource.onerror = function () {
+                        eventSource.close();
+                        const status = document.getElementById('statusIndicator').textContent;
+                        if (status !== 'Completado' && status !== 'Error') {
+                            console.log('NINI: Conexión intermitente. Reintentando reconexión...');
+                            // Pequeña espera antes de reintentar para no saturar
+                            setTimeout(connectToLogs, 2000);
+                        }
+                    };
+                }
+
+                connectToLogs();
+                connectToProductStream();
+
+            } catch (error) {
+                console.error(error);
+                const logLine = document.createElement('div');
+                logLine.className = 'log-line error';
+                logLine.textContent = `> Error: ${error.message}`;
+                consoleOutput.appendChild(logLine);
+                resetBtn();
+                statusIndicator.className = 'status-badge error';
+                statusIndicator.textContent = 'Error';
+
+                // Mostrar botón de reset si es error de thread
+                if (error.message.includes('ya está en ejecución')) {
+                    document.getElementById('resetBtn').style.display = 'block';
+                    document.getElementById('resetHelp').style.display = 'block';
+                }
+            }
+        });
+
+        // Reset button handler
+        document.getElementById('resetBtn').addEventListener('click', async function () {
+            if (!confirm('¿Estás seguro de que quieres resetear el sistema? Esto detendrá cualquier proceso en curso.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/reset', { method: 'POST' });
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert('✅ ' + result.message);
+                    document.getElementById('resetBtn').style.display = 'none';
+                    document.getElementById('resetHelp').style.display = 'none';
+
+                    // Reset UI
+                    const statusIndicator = document.getElementById('statusIndicator');
+                    statusIndicator.className = 'status-badge ready';
+                    statusIndicator.textContent = 'Listo';
+
+                    document.getElementById('consoleOutput').innerHTML = '<div class="log-line info">Sistema reseteado. Esperando para iniciar...</div>';
+                    document.getElementById('productsTableBody').innerHTML = '<tr><td colspan="9" class="empty-state">No hay productos cargados</td></tr>';
+                } else {
+                    alert('❌ Error: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error al resetear:', error);
+                alert('❌ Error al resetear: ' + error.message);
+            }
+        });
+
+        document.getElementById('pauseBtn').addEventListener('click', async function () {
+            try {
+                const response = await fetch('/pause', { method: 'POST' });
+                if (response.ok) {
+                    this.style.display = 'none';
+                    document.getElementById('continueBtn').style.display = 'block';
+                    const statusIndicator = document.getElementById('statusIndicator');
+                    statusIndicator.className = 'status-badge paused';
+                    statusIndicator.textContent = 'Pausado';
+                }
+            } catch (error) {
+                console.error('Error al pausar:', error);
+            }
+        });
+
+        document.getElementById('continueBtn').addEventListener('click', async function () {
+            try {
+                const response = await fetch('/continue', { method: 'POST' });
+                if (response.ok) {
+                    this.style.display = 'none';
+                    document.getElementById('pauseBtn').style.display = 'block';
+                    const statusIndicator = document.getElementById('statusIndicator');
+                    statusIndicator.className = 'status-badge running';
+                    statusIndicator.textContent = 'Ejecutando...';
+                }
+            } catch (error) {
+                console.error('Error al reanudar:', error);
+            }
+        });
+
+        function finishProcess() {
+            const btn = document.getElementById('startBtn');
+            const resultSection = document.getElementById('resultSection');
+            const statusIndicator = document.getElementById('statusIndicator');
+            const executionControls = document.getElementById('executionControls');
+
+            statusIndicator.className = 'status-badge completed';
+            statusIndicator.textContent = 'Completado';
+            resultSection.style.display = 'block';
+            executionControls.style.display = 'none';
+            resetBtn();
+        }
+
+        function resetBtn() {
+            const btn = document.getElementById('startBtn');
+            const btnText = btn.querySelector('.btn-text');
+            const loader = btn.querySelector('.loader');
+            const executionControls = document.getElementById('executionControls');
+
+            btn.disabled = false;
+            btnText.style.display = 'block';
+            loader.style.display = 'none';
+
+            if (btn.disabled === false && document.getElementById('statusIndicator').textContent === 'Ejecutando...') {
+                executionControls.style.display = 'flex';
+            }
+        }
+
+        // =====================================================
+        // HEARTBEAT
+        // =====================================================
+        setInterval(() => {
+            fetch('/heartbeat', { method: 'POST', keepalive: true }).catch(() => { });
+        }, 2000);
+
+        // =====================================================
+        // OBTENER IMÁGENES
+        // =====================================================
+        document.getElementById('imageForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const btn = document.getElementById('imageBtn');
+            const btnText = btn.querySelector('.btn-text');
+            const loader = btn.querySelector('.loader');
+            const progressContainer = document.getElementById('imageProgressContainer');
+            const progressBar = document.getElementById('imageProgressBar');
+            const progressLabel = document.getElementById('imageProgressLabel');
+            const progressStats = document.getElementById('imageProgressStats');
+            const imageLog = document.getElementById('imageLog');
+            const imageDoneMsg = document.getElementById('imageDoneMsg');
+
+            // Reset UI
+            btn.disabled = true;
+            btnText.style.display = 'none';
+            loader.style.display = 'block';
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressLabel.textContent = 'Iniciando...';
+            progressStats.textContent = '';
+            imageLog.innerHTML = '';
+            imageDoneMsg.style.display = 'none';
+
+            const formData = new FormData(this);
+
+            try {
+                const response = await fetch('/scrape_images', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.message || 'Error al iniciar');
+                }
+
+                // Conectar al stream de progreso
+                const evtSource = new EventSource('/stream_image_progress');
+
+                evtSource.onmessage = function (event) {
+                    const data = JSON.parse(event.data);
+
+                    if (data.type === 'heartbeat') return;
+
+                    if (data.type === 'start') {
+                        progressLabel.textContent = `0 / ${data.total}`;
+                    }
+
+                    if (data.type === 'progress') {
+                        const pct = Math.round((data.current / data.total) * 100);
+                        progressBar.style.width = pct + '%';
+                        progressLabel.textContent = `${data.current} / ${data.total} (${pct}%)`;
+
+                        // Color del log según estado
+                        const colors = {
+                            ok: '#a6e3a1',
+                            exists: '#89b4fa',
+                            not_found: '#f38ba8',
+                            error: '#fab387'
+                        };
+                        const color = colors[data.status] || '#cdd6f4';
+                        const icons = { ok: '✅', exists: '📂', not_found: '❌', error: '⚠️' };
+                        const icon = icons[data.status] || '•';
+
+                        const line = document.createElement('div');
+                        line.style.color = color;
+                        line.textContent = `${icon} EAN ${data.ean} — ${data.msg}`;
+                        imageLog.appendChild(line);
+                        imageLog.scrollTop = imageLog.scrollHeight;
+                    }
+
+                    if (data.type === 'done') {
+                        evtSource.close();
+                        progressBar.style.width = '100%';
+                        progressLabel.textContent = `${data.total} / ${data.total} (100%)`;
+                        progressStats.textContent = `✅ ${data.encontradas} encontradas  ❌ ${data.no_encontradas} no encontradas`;
+                        imageDoneMsg.style.display = 'block';
+                        const excelBtn = data.excel_generado
+                            ? `<br><a href="/download_image_results" class="btn success" style="display:inline-block;margin-top:0.75rem;font-size:0.9rem;padding:0.5rem 1rem;">📥 Descargar Excel de Resultados</a>`
+                            : '';
+                        imageDoneMsg.innerHTML = `
+                            🎉 ¡Listo! <strong>${data.encontradas}</strong> imágenes descargadas 
+                            (${data.no_encontradas} no encontradas).<br>
+                            📂 Guardadas en: <code style="font-size:0.85em;">${data.carpeta}</code>
+                            ${excelBtn}
+                        `;
+                        btn.disabled = false;
+                        btnText.style.display = 'block';
+                        loader.style.display = 'none';
+                    }
+                };
+
+                evtSource.onerror = function () {
+                    evtSource.close();
+                    btn.disabled = false;
+                    btnText.style.display = 'block';
+                    loader.style.display = 'none';
+                };
+
+            } catch (error) {
+                alert('❌ Error: ' + error.message);
+                btn.disabled = false;
+                btnText.style.display = 'block';
+                loader.style.display = 'none';
+            }
+        });
+
+        async function openImagesFolder() {
+            try {
+                await fetch('/open_images_folder', { method: 'POST' });
+            } catch (e) {
+                alert('No se pudo abrir la carpeta.');
+            }
+        }
+    </script>
+</body>
+
+</html>
